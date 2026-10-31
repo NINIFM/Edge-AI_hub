@@ -49,13 +49,13 @@ function Install-BingdaProtocol([string]$Root){
 
 function Assert-BingdaMetadata($Metadata){
   if($Metadata.version -notmatch '^\d+(\.\d+){1,3}$'){throw '线上更新版本无效。'}
-  if($Metadata.url -notmatch '^https://github\.com/NINIFM/edge-answer-hub/releases/download/v\d+\.\d+\.\d+(?:\.\d+)?/bingda-edge\.zip$'){throw '更新下载地址不属于并答的 GitHub 发布包。'}
+  if($Metadata.url -notmatch '^https://github\.com/NINIFM/Edge-AI_hub/releases/download/v\d+\.\d+\.\d+(?:\.\d+)?/Edge-AI_hub\.zip$'){throw '更新下载地址不属于并答的 GitHub 发布包。'}
   if($Metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$'){throw '线上更新校验信息无效。'}
 }
 
 function Get-BingdaUpdateInfo{
   [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
-  $url='https://raw.githubusercontent.com/NINIFM/edge-answer-hub/main/update.json?t='+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+  $url='https://raw.githubusercontent.com/NINIFM/Edge-AI_hub/main/update.json?t='+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
   $response=Invoke-WebRequest -UseBasicParsing -Uri $url -Headers @{'User-Agent'='BingdaUpdater'} -TimeoutSec 25
   $metadata=$response.Content | ConvertFrom-Json
   Assert-BingdaMetadata $metadata
