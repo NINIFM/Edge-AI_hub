@@ -1,22 +1,25 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>并答 2.0 · 回答汇总</title><link rel="stylesheet" href="dashboard.css?v=2.0"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>并答 2.0.1 · 回答汇总</title><link rel="stylesheet" href="dashboard.css?v=2.0.1"></head>
 <body>
-<header class="topbar"><a class="brand" href="dashboard.html"><span class="brandmark" aria-hidden="true">答</span><span>回答汇总<small>EDGE ANSWER HUB</small></span></a><nav aria-label="主导航"><span class="prototype" id="build-version">版本2.0</span><a href="help.html" target="_blank" rel="noopener">使用说明 ↗</a><button id="update-extension" class="button secondary" type="button" title="首次先双击安装目录中的更新并答.cmd">一键更新</button><button id="settings-open" class="button subtle">模型设置</button></nav></header>
-<main>
+<header class="topbar"><a class="brand" href="dashboard.html"><span class="brandmark" aria-hidden="true">答</span><span>回答汇总<small>EDGE ANSWER HUB</small></span></a><nav aria-label="主导航"><span class="prototype" id="build-version">版本2.0.1</span><a href="help.html" target="_blank" rel="noopener">使用说明 ↗</a><button id="update-extension" class="button secondary" type="button" title="首次先双击安装目录中的更新并答.cmd">一键更新</button><button id="settings-open" class="button subtle">模型设置</button></nav></header>
+<main class="dashboard-layout">
 <div id="preview-notice" class="notice" hidden>当前为界面预览：请在 Edge 中加载扩展后发送题目。</div>
-<div class="page-heading"><h1>回答汇总</h1></div>
+<div class="input-column">
 <section class="composer panel" aria-labelledby="question-heading">
-<div class="section-heading"><h2 id="question-heading"><span class="step">01</span> 添加题目</h2></div>
-<label class="sr-only" for="question-text">题目文字</label><textarea id="question-text" rows="4" maxlength="30000" placeholder="在这里粘贴题干和选项，也可以直接粘贴截图…"></textarea>
+<div class="section-heading"><h2 id="question-heading"><span class="step">01</span> 添加题目</h2><label class="question-mode" for="question-mode">答题方式 <select id="question-mode"><option value="open" selected>直接问答</option><option value="auto">选择 / 判断（选项投票）</option></select></label></div>
+<label class="sr-only" for="question-text">题目文字</label><textarea id="question-text" rows="5" maxlength="30000" placeholder="在这里直接输入问题，也可以粘贴题目截图…"></textarea>
 <div id="pastezone" class="pastezone" tabindex="0" role="group" aria-label="截图粘贴区域，按 Control 加 V 粘贴图片"><div><span class="image-symbol" aria-hidden="true">▧</span><span>点击这里，按 <kbd>Ctrl + V</kbd> 粘贴截图</span></div></div>
 <div id="image-previews" class="image-previews" aria-label="已添加的图片"></div>
-<div class="composer-footer"><p id="composer-hint">各模型在原会话连续答题；截图直接 Ctrl+V。</p><div class="actions"><button id="clear-question" class="button subtle" type="button" title="停止本题并清空面板，保留各模型原会话">清空 / 下一题</button><button id="start-question" class="button primary" type="button"><span aria-hidden="true">↗</span> 一键发送</button></div></div>
+<div class="composer-footer"><p id="composer-hint">直接问答只答所问，尽量一句话；截图直接 Ctrl+V。</p><div class="actions"><button id="clear-question" class="button subtle" type="button" title="停止本题并清空面板，保留各模型原会话">清空 / 下一题</button><button id="start-question" class="button primary" type="button"><span aria-hidden="true">↗</span> 一键发送</button></div></div>
 </section>
 <div id="feedback" role="status" aria-live="polite" hidden></div>
+</div>
+<div class="output-column">
 <section class="results-section" aria-labelledby="results-heading"><div class="section-heading"><h2 id="results-heading"><span class="step">02</span> 模型回答</h2><div class="result-tools"><span id="run-summary">等待添加题目</span><button id="cancel-run" class="text-button" hidden>停止本题</button></div></div><div id="provider-cards" class="provider-grid"></div></section>
 <section id="recommendation" class="recommendation" aria-labelledby="recommendation-title" aria-live="polite"><div class="recommendation-icon" aria-hidden="true">◎</div><div class="recommendation-copy"><h2 id="recommendation-title">等待开始</h2></div><div id="recommendation-answer" class="recommendation-answer" hidden></div></section>
+</div>
 </main>
-<dialog id="settings-dialog" aria-labelledby="settings-heading"><form id="settings-form"><div class="dialog-heading"><div><p class="eyebrow">你的模型工作台</p><h2 id="settings-heading">模型设置</h2></div><button type="button" id="settings-close" class="button subtle" aria-label="关闭模型设置">关闭</button></div><p class="settings-note">启用决定是否发送题目；参与投票决定是否计入汇总。新增模型默认仅供参考。页面控件可留空，再到原网页点选校准。</p><div id="settings-providers"></div><button type="button" id="add-provider" class="button secondary">＋ 添加模型</button><div id="settings-feedback" role="status" aria-live="polite"></div><div class="dialog-footer"><small>新增模型需授权其具体 HTTPS 网站；仅保存模型配置。</small><button id="save-settings" type="submit" class="button primary">保存设置</button></div></form></dialog>
-<script type="module" src="dashboard.mjs?v=2.0"></script>
+<dialog id="settings-dialog" aria-labelledby="settings-heading"><form id="settings-form"><div class="dialog-heading"><div><p class="eyebrow">你的模型工作台</p><h2 id="settings-heading">模型设置</h2></div><button type="button" id="settings-close" class="button subtle" aria-label="关闭模型设置">关闭</button></div><p class="settings-note">启用决定是否发送题目；参与投票仅在选择 / 判断模式生效。新增模型默认仅供参考。页面控件可留空，再到原网页点选校准。</p><div id="settings-providers"></div><button type="button" id="add-provider" class="button secondary">＋ 添加模型</button><div id="settings-feedback" role="status" aria-live="polite"></div><div class="dialog-footer"><small>新增模型需授权其具体 HTTPS 网站；仅保存模型配置。</small><button id="save-settings" type="submit" class="button primary">保存设置</button></div></form></dialog>
+<script type="module" src="dashboard.mjs?v=2.0.1"></script>
 </body></html>

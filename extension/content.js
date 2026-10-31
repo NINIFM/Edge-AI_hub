@@ -1,8 +1,8 @@
 (() => {
   if (globalThis.__edgeAnswerHubContentInstalled) return;
   globalThis.__edgeAnswerHubContentInstalled = true;
-  const BUILD = '2.0';
-  const CONTENT_REVISION = 18;
+  const BUILD = '2.0.1';
+  const CONTENT_REVISION = 24;
   let active = null;
   // Keep the website task until its stop action has been acknowledged.
   let pageGeneration = null;
@@ -43,7 +43,8 @@
     }
     return true;
   }
-  const ready = element => visible(element) && !element.disabled && !element.closest('[disabled], [aria-disabled="true"], .ds-button--disabled');
+  const ready = element => visible(element) && !element.disabled && !element.closest('[disabled], [aria-disabled="true"], .ds-button--disabled')
+    && !(element.id === 'yuanbao-send-btn' && /SendButton_disabled/.test(element.getAttribute('class') || ''));
   function findAll(selector, root = document) {
     if (!selector) return [];
     try { return [...root.querySelectorAll(selector)]; } catch { throw Error('页面选择器无效，请重新校准控件。'); }
@@ -181,6 +182,49 @@
     }, 20000, '无法确认全部图片已上传完成，已阻止发送残缺题目。');
     task.uploadReady = true;
   }
+  const THINKING_CONTENT = '.text-advance-thinking-content, .ds-think-content, .hyc-component-deepsearch-cot__think, [class*="reason-render-ext_markdown__"]';
+  const REPLY_CONTROLS = 'button, [role="button"], [role="toolbar"], script, style, template, [role="doc-noteref"], [data-citation-id], [data-citation-index], .ds-markdown-cite, .ds-cite, .message-markdown-web-index, [class*="message-markdown_webIndex__"]';
+  function hasServiceShortcut(root) {
+    return findAll('a, button, [role="button"]', root).some(node => /^好的[，,]\s*帮我/.test(node.textContent.trim()));
+  }
+  function cleanReplySuffix(text, providerId, shortcut = false) {
+    // A service question is discarded only when paired with its shortcut control or text.
+    const followup = text.match(shortcut
+      ? /\n+需要我[^\n?？]*[?？](?:\s*好的[，,]\s*帮我[^\n]*)?\s*$/u
+      : /\n+需要我[^\n?？]*[?？]\s*好的[，,]\s*帮我[^\n]*\s*$/u);
+    return followup && text.slice(0, followup.index).trim() ? text.slice(0, followup.index).trim() : text;
+  }
+  function sourceBadge(node) {
+    if (node.closest('pre, code, kbd, math, mjx-container, .katex, .MathJax')) return false;
+    const label = (node.innerText ?? node.textContent).trim();
+    if (!/^(?:\[?\d+(?:\s*[,，、-]\s*\d+)*\]?|(?:[a-z0-9-]+\.)+[a-z]{2,})(?:\s*\+?\s*\d+)?$/i.test(label)) return false;
+    const style = getComputedStyle(node);
+    const background = style.backgroundColor;
+    const colored = background !== 'transparent' && !/rgba\([^)]*,\s*0(?:\.0+)?\)$/.test(background);
+    return /^(?:inline|inline-flex|inline-block|inline-grid)$/.test(style.display)
+      && parseFloat(style.borderTopLeftRadius) >= 6 && colored;
+  }
+  function replyText(element, providerId) {
+    if (element.closest(THINKING_CONTENT)) return '';
+    let text = (element.innerText ?? element.textContent).trim();
+    const providerControls = providerId === 'glm' ? ', .source-item' : '';
+    const ignored = new Set(findAll(`${REPLY_CONTROLS}, ${THINKING_CONTENT}${providerControls}`, element));
+    for (const node of findAll('span, a, sup, div', element)) if (sourceBadge(node)) ignored.add(node);
+    for (const node of findAll('details', element)) {
+      if (/^(?:思考(?:结束|过程|中)|已深度思考|thinking|reasoning)/i.test(node.querySelector('summary')?.textContent.trim() || '')) ignored.add(node);
+    }
+    if (ignored.size) {
+      const read = node => {
+        if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+        if (node.nodeType !== Node.ELEMENT_NODE || ignored.has(node) || !visible(node)) return '';
+        if (node.localName === 'br') return '\n';
+        const value = [...node.childNodes].map(read).join('');
+        return value + (/^(?:block|list-item|table-row|flex|grid)$/.test(getComputedStyle(node).display) ? '\n' : '');
+      };
+      text = read(element).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    return cleanReplySuffix(text, providerId, hasServiceShortcut(element));
+  }
   function turnKey(root, providerId) {
     if (!root) return null;
     const attributes = ['data-virtual-list-item-key', 'data-message-id', 'data-answer-id', 'data-turn-id', 'id'];
@@ -203,11 +247,10 @@
     const snapshot = task.snapshot;
     if (!snapshot) return null;
     const qwen = task.provider.id === 'qwen';
-    const finalElement = element => !(task.provider.id==='hunyuan'&&element.closest('.hyc-component-deepsearch-cot__think'))
-      && !(task.provider.id==='deepseek'&&element.closest('.ds-think-content'));
+    const finalElement = element => !element.closest(THINKING_CONTENT);
     const candidates = findAll(selectors.response).filter(finalElement);
     const rootTexts = new Map();
-    const textOf = element => (element.innerText ?? element.textContent).trim();
+    const textOf = element => replyText(element, task.provider.id);
     const rootText = root => {
       if (!rootTexts.has(root)) rootTexts.set(root, candidates.filter(element => root.contains(element) && visible(element)).map(textOf).join('\n'));
       return rootTexts.get(root);
@@ -252,7 +295,7 @@
     const ambiguous = !binding && [...snapshot.unkeyedRoots].some(previous => !previous.isConnected);
     if (!binding && !ambiguous) task.responseBinding = { key: turnKey(safeRoot, task.provider.id), root: safeRoot, reply: latest };
     const inRoot = safeRoot ? replies.filter(element => safeRoot.contains(element)) : [latest];
-    const text = inRoot.map(element => (element.innerText ?? element.textContent).trim()).join('\n');
+    const text = cleanReplySuffix(inRoot.map(textOf).join('\n'), task.provider.id, hasServiceShortcut(safeRoot || latest));
     const keyedQwen = qwen && turnKey(safeRoot, task.provider.id) && !snapshot.keys.has(turnKey(safeRoot, task.provider.id));
     const done = safeRoot && selectors.done && findAll(selectors.done, safeRoot).some(element => {
       const reusedCurrentReply = keyedQwen && inRoot.some(reply => reply === element || reply.contains(element));
@@ -367,7 +410,7 @@
         keys: new Set([...baselineRoots].map(root => turnKey(root, task.provider.id)).filter(Boolean)),
         unkeyedRoots: new Set([...baselineRoots].filter(root => !turnKey(root, task.provider.id))) };
       if (task.provider.id === 'qwen') {
-        const textOf = element => (element.innerText ?? element.textContent).trim();
+        const textOf = element => replyText(element, task.provider.id);
         task.snapshot.replyTexts = new Map([...baselineReplies].map(element => [element, textOf(element)]));
         task.snapshot.rootTexts = new Map([...baselineRoots].map(root => [root, [...baselineReplies].filter(element => root.contains(element)).map(textOf).join('\n')]));
         task.snapshot.rootReplyTexts = new Map([...baselineRoots].map(root => [root, new Set([...baselineReplies].filter(element => root.contains(element)).map(textOf))]));

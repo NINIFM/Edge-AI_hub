@@ -8,11 +8,11 @@ const BUILTINS = [
   {id:'step',name:'阶跃星辰',url:'https://chat.stepfun.com/chats/new',color:'#3979d6',enabled:true,voting:true,custom:false,
     selectors:{input:'textarea[placeholder]:not([disabled])',send:'button:has(.custom-icon-send-outline):not(.cursor-not-allowed)',response:'[data-message-id="message"] [data-message-id="markdown"] > [class*="message-markdown_markdown__"]:not([class*="reason-render-ext_markdown__"])',responseRoot:'[data-message-id="message"][data-id]',stop:'button:has(.custom-icon-stop-fill)',done:'button:has(.custom-icon-reload-outline)',attachment:'div:has(> div > div > textarea[placeholder]:not([disabled])) > .scrollbar-hide > div > .group:has(img)'}},
   {id:'hunyuan',name:'腾讯混元',url:'https://yuanbao.tencent.com/',color:'#14a978',enabled:true,voting:true,custom:false,
-    selectors:{input:'.ql-editor[contenteditable="true"]',send:'#yuanbao-send-btn[aria-label="发送"]:not([class*="SendButton_disabled"]), #yuanbao-send-btn:has(> .icon-send)',response:'.agent-chat__speech-text--box-left .hyc-content-md > .hyc-common-markdown',responseRoot:'.agent-chat__speech-text--box-left[data-trace-id]',stop:'#yuanbao-send-btn[aria-label="停止回答"]',done:'.hyc-content-md-done',attachment:'[class*="FileList_inputFileListItemImage"]'}}
+    selectors:{input:'.ql-editor[contenteditable="true"]',send:'#yuanbao-send-btn[aria-label="发送"]:not([class*="SendButton_disabled"])',response:'.agent-chat__speech-text--box-left .hyc-content-md > .hyc-common-markdown',responseRoot:'.agent-chat__speech-text--box-left[data-trace-id]',stop:'#yuanbao-send-btn[aria-label="停止回答"]',done:'.hyc-content-md-done',attachment:'[class*="FileList_inputFileListItemImage"]'}}
 ];
 export const SELECTOR_FIELDS = ['input','send','response','responseRoot','stop','done','attachment'];
-export const BUILD = '2.0';
-export const CONTENT_REVISION = 18;
+export const BUILD = '2.0.1';
+export const CONTENT_REVISION = 24;
 export const defaults = () => structuredClone(BUILTINS);
 export function migrateProviders(input,{addBuiltins=false}={}) {
   if(!Array.isArray(input))throw Error('模型配置无效');
@@ -27,7 +27,7 @@ export function migrateProviders(input,{addBuiltins=false}={}) {
   for(const provider of providers) {
     if(provider.id==='glm'&&provider.selectors.send==='.enter-icon-container')provider.selectors.send='.enter-icon-container .enter_icon';
     if(['glm','deepseek'].includes(provider.id)&&!provider.selectors.stop)provider.selectors.stop=BUILTINS.find(builtin=>builtin.id===provider.id).selectors.stop;
-    if(provider.id==='hunyuan'&&provider.selectors.send==='#yuanbao-send-btn[aria-label="发送"]:not([class*="SendButton_disabled"])')provider.selectors.send=BUILTINS.find(builtin=>builtin.id==='hunyuan').selectors.send;
+    if(provider.id==='hunyuan')provider.selectors.send=BUILTINS.find(builtin=>builtin.id==='hunyuan').selectors.send;
     if(provider.id==='qwen'){
       const builtin=BUILTINS.find(item=>item.id==='qwen');
       if(provider.selectors.response==='[data-chat-answers-wrap] .qk-markdown')provider.selectors.response=builtin.selectors.response;

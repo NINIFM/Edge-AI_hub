@@ -1,4 +1,5 @@
-const QUESTION_TYPES = new Set(['auto', 'single', 'multiple', 'judgment']);
+const QUESTION_TYPES = new Set(['open', 'auto', 'single', 'multiple', 'judgment']);
+export const PROMPT_REVISION = 3;
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const IMAGE_LIMIT = 8 * 1024 * 1024;
 const TOTAL_IMAGE_LIMIT = 20 * 1024 * 1024;
@@ -25,7 +26,7 @@ export function isUncertainResponse(text) {
 
 /** Normalize only a supplied answer token; prose and ambiguous alternatives fail closed. */
 export function normalizeAnswer(value, type) {
-  if (typeof value !== 'string' || !QUESTION_TYPES.has(type)) return null;
+  if (typeof value !== 'string' || !QUESTION_TYPES.has(type) || type === 'open') return null;
   const token = stripMarkdown(value);
   if (!token || /[\r\n]/.test(token)) return null;
   if (type === 'auto' && (token === '正确' || token === '错误')) return token;
@@ -68,7 +69,7 @@ function normalizeFinalAnswer(value, type) {
 
 /** Read explicit answer declarations or conclusions, never arbitrary option letters in prose. */
 export function extractAnswer(text, type) {
-  if (typeof text !== 'string' || !QUESTION_TYPES.has(type) || isUncertainResponse(text)) return null;
+  if (typeof text !== 'string' || !QUESTION_TYPES.has(type) || type === 'open' || isUncertainResponse(text)) return null;
   const lines = text.split(/\r?\n/).map(stripMarkdown);
   const finals = [];
   const markers=[
@@ -150,7 +151,7 @@ function decodedSize(dataUrl, mime) {
 export function validateQuestion(question) {
   if (!question || typeof question !== 'object' || Array.isArray(question)) return ['题目格式无效。'];
   const errors = [];
-  if (!QUESTION_TYPES.has(question.type)) errors.push('请选择不限定题型、单选、多选或判断题。');
+  if (!QUESTION_TYPES.has(question.type)) errors.push('请选择直接问答或选择 / 判断题。');
   if (typeof question.text !== 'string') errors.push('题目文字格式无效。');
   else if (question.text.length > 30000) errors.push('题目文字不能超过 30000 个字符。');
   if (!Array.isArray(question.images)) {
@@ -180,15 +181,21 @@ export function validateQuestion(question) {
 }
 
 export function buildPrompt(question, {includeInstructions = true} = {}) {
-  const rule = [
-    '这是连续答题任务。以下规则对本会话从现在起的每一道题持续生效，后续不再重复。每条消息的文字和所附全部图片组成一道独立题目，只回答当题，不沿用上一题答案。',
+  const rule = (question?.type === 'open' ? [
+    '每条消息的文字是一个独立问题，只回答当前问题。',
+    '直接输出题目所问的答案，尽可能简洁，通常用一行或一句话。',
+    '不复述题目，不附解析、来源、链接、背景、客套话或建议，也不得追问。',
+    '问标题只答标题原文，问数值只答数值及必要单位；问多个要点时简短列出，不扩展。',
+    '无需输出选项字母，除非题目本身要求选择选项。'
+  ] : [
+    '从本条消息起使用选择 / 判断题方式，替代此前的直接问答格式。以下规则对本会话从现在起的每一道题持续生效，后续不再重复。每条消息的文字和所附全部图片组成一道独立题目，只回答当题，不沿用上一题答案。',
     '请在内部完成审题、核实和推理。回复正文必须只有一行纯文本，且只用以下一种格式：',
     '选择题：答案：选项字母。单选只填一个大写字母，多选将全部正确选项按字母顺序紧连，例如“答案：B”或“答案：AC”。',
     '判断题：只回复“答案：A”或“答案：B”，按题目中的选项对应关系作答。',
     '没有可靠依据、题目信息不足或无法确定：只回复“无法确认”，不得猜测或编造，也不要追问。',
     '“答案：”和结果必须在同一行，不换行、不加空行。除这一行外不得输出任何内容：不附选项原文、解析、来源、引用、链接、标题、表格、Markdown、表情、客套话、追问或继续服务的建议。即使题目要求说明，也只按上述格式作答。不要确认收到，不要复述规则，直接回答本条题目。',
     '本题：'
-  ].join('\n');
+  ]).join('\n');
   const text = typeof question?.text === 'string' ? question.text : '';
   return [includeInstructions ? rule : '', text].filter(part => part !== '').join('\n');
 }

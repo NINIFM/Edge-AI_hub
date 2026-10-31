@@ -1,5 +1,5 @@
 import {defaults,sanitizeProviders,migrateProviders,originPattern,SELECTOR_FIELDS,BUILD,CONTENT_REVISION} from './providers.mjs';
-import {validateQuestion,buildPrompt,extractAnswer,isUncertainResponse} from './core.mjs';
+import {validateQuestion,buildPrompt,extractAnswer,isUncertainResponse,PROMPT_REVISION} from './core.mjs';
 
 const clone=v=>structuredClone(v);
 const terminal=r=>['completed','uncertain','error'].includes(r.status);
@@ -31,6 +31,7 @@ export function createController(api) {
       for(const p of selected){
         const saved=task.results?.[p.id]||{},r=blank(p,task.id,saved.attempt||1);
         r.includesInstructions=saved.includesInstructions===true;
+        r.promptRevision=saved.promptRevision;
         if(Number.isInteger(saved.tabId))r.tabId=saved.tabId;
         if(saved.manualOverride||saved.source==='manual')Object.assign(r,{status:'error',error:'旧版人工答案不再使用，请重试本模型。'});
         else Object.assign(r,Number.isInteger(r.tabId)?{status:'sending'}:{status:'error',error:'上次发题流程已中断，请重试本模型。'});
@@ -70,7 +71,7 @@ export function createController(api) {
   function taskMetadata() {
     if(!run)return null;
     return {id:run.id,questionType:run.questionType,startedAt:run.startedAt,questionHash:run.questionHash,providers:clone(run.providers),cancelled:Boolean(run.cancelled),
-      results:Object.fromEntries(Object.entries(run.results).map(([id,r])=>[id,{providerId:r.providerId,runId:r.runId,attempt:r.attempt,tabId:r.tabId,includesInstructions:r.includesInstructions}]))};
+      results:Object.fromEntries(Object.entries(run.results).map(([id,r])=>[id,{providerId:r.providerId,runId:r.runId,attempt:r.attempt,tabId:r.tabId,includesInstructions:r.includesInstructions,promptRevision:r.promptRevision}]))};
   }
   function persistControl() {
     const snapshot={activeTask:taskMetadata(),tabMap:clone(tabMap),calibrations:clone(calibrations),modelWindowId,promptContexts:clone(promptContexts)};
@@ -97,11 +98,11 @@ export function createController(api) {
   }
   function needsInstructions(p,tab){
     const saved=promptContexts[p.id],key=conversationKey(p.id,tab.url);
-    if(saved?.tabId!==tab.id||!key||(saved.key!==null&&saved.key!==key))return true;
+    if(saved?.tabId!==tab.id||saved.revision!==PROMPT_REVISION||saved.questionType!==run.questionType||!key||(saved.key!==null&&saved.key!==key))return true;
     saved.key=key;return false;
   }
   function recordInstructions(r,url){
-    if(r.includesInstructions)promptContexts[r.providerId]={tabId:r.tabId,key:conversationKey(r.providerId,url)};
+    if(r.includesInstructions&&r.promptRevision===PROMPT_REVISION)promptContexts[r.providerId]={tabId:r.tabId,key:conversationKey(r.providerId,url),revision:r.promptRevision,questionType:run.questionType};
   }
   function applyReply(r,reply,fromRead=false) {
     if(r.source==='confirmed'||!needsPolling(r))return;
@@ -111,10 +112,11 @@ export function createController(api) {
     const statusOnly=!fromRead&&!incoming&&['sending','generating'].includes(reply.status);
     const text=statusOnly?r.text:incoming;
     const uncertain=isUncertainResponse(text),answer=reply.ambiguous?null:extractAnswer(text,run.questionType);
+    const answered=run.questionType==='open'?Boolean(text.trim()):Boolean(answer);
     const done=fromRead?reply.done===true&&!reply.stopped&&!reply.ambiguous:reply.status==='completed';
     let status,error=String(reply.error||'').slice(0,1000);
     if(reply.status==='error')status='error';
-    else if(done)status=uncertain?'uncertain':answer?'completed':'needs_confirmation';
+    else if(done)status=uncertain?'uncertain':answered?'completed':'needs_confirmation';
     else if(fromRead&&reply.status==='sending')status='sending';
     else if(fromRead)status=reply.stopped?'generating':reply.ambiguous||reply.status==='needs_confirmation'?'needs_confirmation':'generating';
     else status=reply.status;
@@ -232,7 +234,7 @@ export function createController(api) {
       if(!valid())return;
       const latestTab=await api.tabs.get(tab.id);if(!valid())return;
       const includesInstructions=needsInstructions(p,latestTab);
-      Object.assign(run.results[p.id],{status:'sending',includesInstructions,updatedAt:Date.now()});await publishControl();
+      Object.assign(run.results[p.id],{status:'sending',includesInstructions,promptRevision:PROMPT_REVISION,updatedAt:Date.now()});await publishControl();
       if(!valid())return;
       const message={type:'site:start',build:BUILD,contentRevision:CONTENT_REVISION,provider:clone(p),question:q,prompt:buildPrompt(q,{includeInstructions:includesInstructions}),runId:id,attempt};
       let ack=await api.tabs.sendMessage(tab.id,message);
@@ -317,7 +319,7 @@ export function createController(api) {
         const r=run?.results[m.providerId];if(!r)throw Error('请先开始一题');
         if(r.status==='uncertain'||isUncertainResponse(r.text))throw Error('模型已明确无法确认，请重试本模型');
         const answer=extractAnswer(r.text,run.questionType);
-        if(!answer)throw Error('未找到明确答案，请重试本模型');
+        if(!(run.questionType==='open'?r.text.trim():answer))throw Error('未找到回答内容，请重试本模型');
         if(r.status!=='needs_confirmation')throw Error('请等待回复结束后再确认');
         Object.assign(r,{status:'completed',answer,error:'',readDelayed:false,source:'confirmed',updatedAt:Date.now()});await publishControl();
       }else if(m.type==='hub:cancel'||m.type==='hub:clear'){
