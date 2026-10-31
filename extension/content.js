@@ -2,7 +2,7 @@
   if (globalThis.__edgeAnswerHubContentInstalled) return;
   globalThis.__edgeAnswerHubContentInstalled = true;
   const BUILD = '2.0.1';
-  const CONTENT_REVISION = 24;
+  const CONTENT_REVISION = 25;
   let active = null;
   // Keep the website task until its stop action has been acknowledged.
   let pageGeneration = null;
@@ -44,7 +44,7 @@
     return true;
   }
   const ready = element => visible(element) && !element.disabled && !element.closest('[disabled], [aria-disabled="true"], .ds-button--disabled')
-    && !(element.id === 'yuanbao-send-btn' && /SendButton_disabled/.test(element.getAttribute('class') || ''));
+    && !(element.id === 'yuanbao-send-btn' && /disabled/i.test(element.getAttribute('class') || ''));
   function findAll(selector, root = document) {
     if (!selector) return [];
     try { return [...root.querySelectorAll(selector)]; } catch { throw Error('页面选择器无效，请重新校准控件。'); }

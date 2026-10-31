@@ -9,7 +9,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function conversationKey(id,value){
   const url=new URL(value);
   if(id==='glm')return url.searchParams.get('cid');
-  const routes={deepseek:/^\/a\/chat\/s\/([^/]+)\/?$/,qwen:/^\/chat\/([^/]+)\/?$/,step:/^\/chats\/(?!new\/?$)([^/]+)\/?$/,hunyuan:/^\/chat\/([^/]+\/[^/]+)\/?$/};
+  const routes={deepseek:/^\/a\/chat\/s\/([^/]+)\/?$/,qwen:/^\/chat\/([^/]+)\/?$/,step:/^\/chats\/(?!new\/?$)([^/]+)\/?$/,hunyuan:/^\/chat\/([^/]+)\/?$/};
   return routes[id]?url.pathname.match(routes[id])?.[1]??null:url.origin+url.pathname+url.search;
 }
 async function fingerprint(q) {
